@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from flask_pymongo import PyMongo
-from marshmallow import Schema, fields
+from marshmallow import Schema, fields, ValidationError
 from bson.json_util import dumps
 from json import loads
 import os
 from dotenv import load_dotenv
+from functools import partial
 
 load_dotenv()
 
@@ -57,7 +58,11 @@ class DataSchema(Schema):
 def post_data():
 
     request_dict = request.json
-    new_data = DataSchema().load(request_dict)
+
+    try:
+        new_data = DataSchema().load(request_dict)
+    except ValidationError as err:
+        return(err.messages, 400)
 
     data_document = mongo.db.info.insert_one(new_data)
     data_id = data_document.inserted_id
@@ -112,10 +117,18 @@ def patch_profile(Username, Role, Colour):
 #-----------------TANK_-----------------
 @app.route("/data/<ObjectId:id>", methods=["PATCH"])
 def update_data(id): 
+    request_dict = request.json
+    try:
+        data_patch = DataSchema(partial=True).load(request_dict)
+    except ValidationError as err:
+        return(err.messages, 400)
+
     mongo.db.info.update_one({"_id":id}, {"$set": request.json})
 
     data = mongo.db.info.find_one({"_id":id})
-    return jsonify(data_json)
+    data_json = loads(dumps(data))
+
+    return(data_json)
 
 
 #DELETE
